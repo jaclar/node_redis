@@ -443,15 +443,16 @@ RedisClient.prototype.connection_gone = function (why) {
         this.retry_delay = Math.floor(this.retry_delay * this.retry_backoff);
     }
 
-    if (exports.debug_mode) {
+    if (exports.ebug_mode) {
         console.log("Retry connection in " + this.retry_delay + " ms");
     }
 
     if (this.max_attempts && this.attempts >= this.max_attempts) {
         this.retry_timer = null;
-        // TODO - some people need a "Redis is Broken mode" for future commands that errors immediately, and others
-        // want the program to exit.  Right now, we just log, which doesn't really help in either case.
+        // if we reach max_attempts "reconnect_failed" gets emitted
+        // the user can now decide how to react on a failed reconnect
         console.error("node_redis: Couldn't get Redis connection after " + this.max_attempts + " attempts.");
+        this.emit("reconnect_failed");
         return;
     }
 
@@ -469,8 +470,9 @@ RedisClient.prototype.connection_gone = function (why) {
 
         if (self.connect_timeout && self.retry_totaltime >= self.connect_timeout) {
             self.retry_timer = null;
-            // TODO - engage Redis is Broken mode for future commands, or whatever
+            // if we reach connect_timeout "reconnect_failed" gets emitted
             console.error("node_redis: Couldn't get Redis connection after " + self.retry_totaltime + "ms.");
+            self.emit("reconnect_failed");
             return;
         }
 
@@ -713,7 +715,7 @@ RedisClient.prototype.send_command = function (command, args, callback) {
             return callback(err);
         }
     }
-    
+
     buffer_args = false;
     for (i = 0, il = args.length, arg; i < il; i += 1) {
         if (Buffer.isBuffer(args[i])) {
